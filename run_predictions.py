@@ -2,6 +2,8 @@ import os
 import numpy as np
 import json
 from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 def detect_red_light(I):
     '''
@@ -25,25 +27,47 @@ def detect_red_light(I):
     BEGIN YOUR CODE
     '''
     
-    '''
-    As an example, here's code that generates between 1 and 5 random boxes
-    of fixed size and returns the results in the proper format.
-    '''
-    
-    box_height = 8
-    box_width = 6
-    
-    num_boxes = np.random.randint(1,5) 
-    
-    for i in range(num_boxes):
-        (n_rows,n_cols,n_channels) = np.shape(I)
-        
-        tl_row = np.random.randint(n_rows - box_height)
-        tl_col = np.random.randint(n_cols - box_width)
-        br_row = tl_row + box_height
-        br_col = tl_col + box_width
-        
-        bounding_boxes.append([tl_row,tl_col,br_row,br_col]) 
+    red = I[:, :, 0]
+    green = I[:, :, 1]
+    blue = I[:, :, 2]
+
+    thresh = 200
+
+    # Take dominant red color
+    lights = np.asarray([red[x, y] > thresh and green[x, y] < thresh and 
+        blue[x, y] < thresh for x in range(len(red)) for y in 
+        range(len(red[0]))]).reshape(red.shape)
+
+    # Plot image 
+    # plt.subplot(121)
+    # plt.imshow(I)
+    # plt.title('Original Image')
+    # plt.subplot(122)
+
+    # Circle Hough Transform
+    acc = np.zeros((red.shape[0] + 1, red.shape[1] + 1, 20))
+    for r in range(1, 3):
+        print(r)
+        idxs = np.where(lights == 1)
+        for x, y in zip(idxs[0], idxs[1]):
+            for theta in range(360):
+                b = int(y - r * np.sin(theta * np.pi / 180))
+                a = int(x - r * np.cos(theta * np.pi / 180))
+                if a >= acc.shape[0] or b >= acc.shape[1]:
+                    continue
+                acc[a, b, r] += 1
+
+    # Bounding boxes
+    circle_thresh = 100
+    # plt.imshow(I)
+    # plt.title('Labeled Image')
+    idxs = np.where(acc > circle_thresh)
+    for x, y, r in zip(idxs[0], idxs[1], idxs[2]):
+        # plt.gca().add_patch(mpatches.Rectangle((y-r, x-r), r, r, color='green'))
+        bounding_boxes.append([int(x-r), int(y-r), int(x), int(y)])
+
+    plt.show()
+
     
     '''
     END YOUR CODE
@@ -55,7 +79,7 @@ def detect_red_light(I):
     return bounding_boxes
 
 # set the path to the downloaded data: 
-data_path = './data/RedLights2011_Medium'
+data_path = './data/RedLights2011_Medium/RedLights2011_Medium'
 
 # set a path for saving predictions: 
 preds_path = './data/hw01_preds' 
@@ -67,9 +91,13 @@ file_names = sorted(os.listdir(data_path))
 # remove any non-JPEG files: 
 file_names = [f for f in file_names if '.jpg' in f] 
 
+# Bad:  RL-011, RL-167, RL-245
+# Good: RL-020, RL-182, RL-264, 
+# file_names = ['RL-020.jpg', 'RL-182.jpg', 'RL-264.jpg']
+
 preds = {}
 for i in range(len(file_names)):
-    
+    print('{:.0f}%'.format(100 * (i / len(file_names))), end='\r')
     # read image using PIL:
     I = Image.open(os.path.join(data_path,file_names[i]))
     
